@@ -1,0 +1,230 @@
+<title>Simulador del monopoli</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap">
+<style>
+/* Layout: una columna de lectura; simulador (controls + resultats + gràfic) i després qüestionari. */
+:root{
+  --bg:#F2F4F8; --surface:#FFFFFF; --fg:#14213D; --muted:#4A5570; --line:#D5DAE6;
+  --accent:#9A4D04; --amber:#F2A33A; --on-amber:#14213D; --good:#1F7A4D; --bad:#B42318;
+  --font-display:'DM Sans', Arial, sans-serif; --font-body:'DM Sans', Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1A33; --surface:#17264A; --fg:#F1F3F8; --muted:#B5BED3; --line:#2B3C66;
+    --accent:#F2A33A; --good:#5BD08F; --bad:#FF8A7A; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1A33; --surface:#17264A; --fg:#F1F3F8; --muted:#B5BED3; --line:#2B3C66;
+  --accent:#F2A33A; --good:#5BD08F; --bad:#FF8A7A; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:18px;line-height:1.5;
+  padding-block:40px 64px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+.wrap{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:48px}
+h1,h2,h3{font-family:var(--font-display);line-height:1.15;text-wrap:balance;margin:0}
+h1{font-size:clamp(34px,6vw,56px);font-weight:700}
+h2{font-size:clamp(26px,4vw,34px);font-weight:700}
+h3{font-size:20px;font-weight:600}
+p{margin:0}
+.eyebrow{font-size:14px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.lead{font-size:20px;color:var(--muted);max-width:62ch}
+header{display:flex;flex-direction:column;gap:16px}
+section{display:flex;flex-direction:column;gap:24px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:24px;min-width:0}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.control{display:flex;flex-direction:column;gap:8px;min-width:0}
+.control label,.control .lbl{font-weight:600}
+.val{font-size:32px;font-weight:700;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--amber);height:32px}
+.switch{display:flex;align-items:center;gap:12px;font-weight:600}
+.switch input{width:22px;height:22px;accent-color:var(--amber)}
+.btns{display:flex;flex-wrap:wrap;gap:12px}
+button{font:inherit;font-weight:600;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:10px 16px;cursor:pointer;min-height:44px}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--amber);color:var(--on-amber);border-color:var(--amber)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.tile{display:flex;flex-direction:column;gap:4px;padding:16px;border:1px solid var(--line);border-radius:12px;min-width:0}
+.tile .k{font-size:14px;color:var(--muted);font-weight:600}
+.tile .v{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.tile .u{font-size:14px;color:var(--muted)}
+.msg{padding:16px;border-radius:12px;border:1px solid var(--line);font-weight:600;min-height:3.2em}
+.chart{width:100%;height:auto;display:block}
+.chart text{fill:var(--muted);font-size:13px;font-family:var(--font-body)}
+.chart .axis{stroke:var(--line);stroke-width:1}
+.chart .curve{fill:none;stroke:var(--accent);stroke-width:3}
+.chart .dot{fill:var(--amber);stroke:var(--fg);stroke-width:2}
+.chart .capline{stroke:var(--bad);stroke-width:2;stroke-dasharray:6 5}
+.chart .caplbl{fill:var(--bad);font-weight:700}
+.chart .maxlbl{fill:var(--fg);font-weight:600}
+.note{font-size:14px;color:var(--muted)}
+.opts{display:flex;flex-direction:column;gap:12px}
+.opt{text-align:left;font-weight:400;padding:14px 16px}
+.opt[disabled]{cursor:default;opacity:1}
+.opt.right{border-color:var(--good);border-width:2px}
+.opt.wrong{border-color:var(--bad);border-width:2px}
+.fb{padding:16px;border-radius:12px;border:1px solid var(--line)}
+.progress{font-size:14px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.score{font-size:48px;font-weight:700}
+@media (max-width:640px){
+  .controls{grid-template-columns:1fr}
+  .tiles{grid-template-columns:1fr}
+  body{font-size:17px}
+}
+@media (prefers-reduced-motion:no-preference){ .tile .v{transition:color .2s} }
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">Economia · 4t d’ESO · Monopoli</p>
+  <h1>Ets el director d’un aeroport únic</h1>
+  <p class="lead">Fixa el preu per passatger i mira què passa amb els viatgers i amb el benefici. Després, prova què canvia si hi ha un regulador, com passa amb Aena. Les xifres són inventades per a l’exemple (l’aeroport fictici de CalaBlava).</p>
+</header>
+
+<section aria-labelledby="h-sim">
+  <h2 id="h-sim">1. Simulador de preus</h2>
+  <div class="panel">
+    <div class="controls">
+      <div class="control">
+        <label for="preu">Preu que vols cobrar per passatger</label>
+        <div class="val" id="preu-val" aria-live="polite">72 €</div>
+        <input type="range" id="preu" min="20" max="125" step="1" value="72">
+        <p class="note">El cost per passatger és de 20 €.</p>
+      </div>
+      <div class="control">
+        <div class="switch"><input type="checkbox" id="reg" checked><label for="reg">Hi ha un regulador (com la CNMC i el DORA)</label></div>
+        <div class="val" id="topall-val">Topall: 45 €</div>
+        <input type="range" id="topall" min="20" max="125" step="1" value="45" aria-label="Topall de preu fixat pel regulador">
+        <p class="note">El regulador no et deixa cobrar més que el topall.</p>
+      </div>
+    </div>
+    <div class="btns">
+      <button type="button" id="b-comp">Preu de competència (20 €)</button>
+      <button type="button" id="b-mono" class="primary">Preu que maximitza el benefici</button>
+    </div>
+    <div class="tiles" aria-live="polite">
+      <div class="tile"><span class="k">Preu final</span><span class="v" id="t-preu">—</span><span class="u">€ per passatger</span></div>
+      <div class="tile"><span class="k">Passatgers que volen volar</span><span class="v" id="t-pax">—</span><span class="u">milers de passatgers</span></div>
+      <div class="tile"><span class="k">Benefici de l’empresa</span><span class="v" id="t-ben">—</span><span class="u">milions d’euros</span></div>
+    </div>
+    <div class="msg" id="msg" aria-live="polite"></div>
+    <svg class="chart" id="chart" viewBox="0 0 620 320" role="img" aria-label="Gràfic del benefici de l’empresa segons el preu fixat"></svg>
+    <p class="note">Model simplificat: si puges el preu, hi ha menys passatgers. Sense regulació, el preu que més benefici dona és de 72,5 €, més de tres vegades el cost. En competència perfecta el preu baixaria cap a 20 € i el benefici cap a zero.</p>
+  </div>
+</section>
+
+<section aria-labelledby="h-quiz">
+  <h2 id="h-quiz">2. Test ràpid</h2>
+  <div class="panel" id="quiz"></div>
+</section>
+</div>
+
+<script>
+(function(){
+  var A=500,B=4,C=20,PMAX=125;
+  function q(p){return Math.max(0,A-B*p)}
+  function profit(p){return (p-C)*q(p)}
+  var $=function(id){return document.getElementById(id)};
+  var fmt=function(n,d){return n.toLocaleString('ca-ES',{minimumFractionDigits:d||0,maximumFractionDigits:d||0})};
+  var preu=$('preu'),reg=$('reg'),topall=$('topall');
+
+  var X0=60,X1=590,Y0=270,Y1=24,YMAX=12;
+  function sx(p){return X0+(p-20)/(PMAX-20)*(X1-X0)}
+  function sy(m){return Y0-(m/YMAX)*(Y0-Y1)}
+
+  function drawChart(eff,cap){
+    var s='';
+    var yt=[0,4,8,12];
+    yt.forEach(function(m){
+      s+='<line class="axis" x1="'+X0+'" x2="'+X1+'" y1="'+sy(m)+'" y2="'+sy(m)+'"/>';
+      s+='<text x="'+(X0-8)+'" y="'+(sy(m)+4)+'" text-anchor="end">'+m+'</text>';
+    });
+    [20,40,60,80,100,120].forEach(function(p){
+      s+='<text x="'+sx(p)+'" y="'+(Y0+20)+'" text-anchor="middle">'+p+'</text>';
+    });
+    s+='<text x="'+((X0+X1)/2)+'" y="'+(Y0+42)+'" text-anchor="middle">Preu per passatger (€)</text>';
+    s+='<text x="14" y="16" text-anchor="start">Benefici (M€)</text>';
+    var d='';
+    for(var p=20;p<=PMAX;p++){d+=(p===20?'M':'L')+sx(p).toFixed(1)+' '+sy(profit(p)/1000).toFixed(1)+' ';}
+    s+='<path class="curve" d="'+d+'"/>';
+    s+='<text class="maxlbl" x="'+sx(72.5)+'" y="'+(sy(profit(72.5)/1000)-12)+'" text-anchor="middle">Màxim: 72,5 €</text>';
+    if(cap!==null){
+      s+='<line class="capline" x1="'+sx(cap)+'" x2="'+sx(cap)+'" y1="'+Y1+'" y2="'+Y0+'"/>';
+      var anchor=cap>90?'end':'start', off=cap>90?-8:8;
+      s+='<text class="caplbl" x="'+(sx(cap)+off)+'" y="'+(Y1+14)+'" text-anchor="'+anchor+'">Topall</text>';
+    }
+    s+='<circle class="dot" cx="'+sx(eff)+'" cy="'+sy(profit(eff)/1000)+'" r="9"/>';
+    $('chart').innerHTML=s;
+  }
+
+  function update(){
+    var p=+preu.value, cap=reg.checked?+topall.value:null;
+    var eff=cap!==null?Math.min(p,cap):p;
+    $('preu-val').textContent=fmt(p)+' €';
+    $('topall-val').textContent='Topall: '+fmt(+topall.value)+' €';
+    topall.disabled=!reg.checked;
+    $('t-preu').textContent=fmt(eff);
+    $('t-pax').textContent=fmt(q(eff));
+    $('t-ben').textContent=fmt(profit(eff)/1000,1);
+    var m;
+    if(cap!==null && p>cap){
+      m='El regulador et frena: volies cobrar '+fmt(p)+' €, però només pots cobrar '+fmt(cap)+' €. Hi ha '+fmt(q(eff)-q(p))+' mil passatgers més que si fixessis el preu lliurement.';
+    } else if(eff<=C+2){
+      m='Preu gairebé igual al cost: és el que passaria en competència. Hi ha molts passatgers, però l’empresa no guanya gairebé res.';
+    } else if(Math.abs(eff-72.5)<=3){
+      m='Aquest és el preu del monopoli sense regulació: màxim benefici, però només '+fmt(q(eff))+' mil passatgers, la meitat dels '+fmt(q(C))+' mil que hi hauria en competència.';
+    } else if(eff>72.5){
+      m='Massa car: perds passatgers més de pressa del que guanyes per cada bitllet. Fins i tot un monopoli perd benefici si puja massa.';
+    } else {
+      m='Encara pots guanyar més pujant el preu. Un monopoli sense regulador ho faria.';
+    }
+    $('msg').textContent=m;
+    drawChart(eff,cap);
+  }
+  preu.addEventListener('input',update);
+  topall.addEventListener('input',update);
+  reg.addEventListener('change',update);
+  $('b-comp').addEventListener('click',function(){preu.value=20;update()});
+  $('b-mono').addEventListener('click',function(){preu.value=72;update()});
+  update();
+
+  /* Test */
+  var Q=[
+    {q:'Quantes empreses ofereixen el producte en un monopoli?',o:['Una sola','Dues o tres','Moltes, però petites'],a:0,e:'Això defineix el monopoli: un sol venedor i cap competidor directe.'},
+    {q:'Per què costa tant que entrin competidors nous al mercat dels aeroports?',o:['Perquè ningú vol volar','Per les barreres d’entrada: costos enormes i permisos de l’Estat','Perquè els aeroports són gratuïts'],a:1,e:'Construir un aeroport costa milers de milions i necessita autoritzacions, així que gairebé ningú no ho pot fer.'},
+    {q:'Què és un monopoli natural?',o:['Quan l’empresa és d’origen familiar','Quan una sola empresa serveix tot el mercat a menys cost que si n’hi hagués diverses','Quan l’empresa ven productes naturals'],a:1,e:'Per exemple, la xarxa elèctrica d’alta tensió: duplicar tots els cables seria absurd i carísim.'},
+    {q:'Qui decideix les tarifes aeroportuàries d’Aena per a 2027–2031?',o:['Aena, lliurement','El Govern, amb un informe de la CNMC (DORA III)','Cada aerolínia pel seu compte'],a:1,e:'El Consell de Ministres va aprovar el DORA III el 15 de setembre de 2026, amb un informe previ de la CNMC.'},
+    {q:'Sense regulació, què faria un monopoli per guanyar el màxim?',o:['Cobrar un preu més alt i vendre menys','Cobrar igual que el cost','Regalar el servei'],a:0,e:'Com has vist al simulador: el preu de màxim benefici és més alt que en competència i hi ha menys clients.'}
+  ];
+  var i=0,score=0,box=$('quiz');
+  function render(){
+    box.innerHTML='';
+    if(i>=Q.length){
+      var msg=score===Q.length?'Perfecte!':score>=3?'Molt bé!':'Repassa el simulador i torna-ho a provar.';
+      box.innerHTML='<p class="progress">Resultat</p><p class="score">'+score+' / '+Q.length+'</p><p>'+msg+'</p><div class="btns"><button type="button" class="primary" id="again">Tornar a començar</button></div>';
+      $('again').addEventListener('click',function(){i=0;score=0;render()});
+      return;
+    }
+    var cur=Q[i];
+    var h='<p class="progress">Pregunta '+(i+1)+' de '+Q.length+'</p><h3>'+cur.q+'</h3><div class="opts">';
+    cur.o.forEach(function(t,k){h+='<button type="button" class="opt" data-k="'+k+'">'+t+'</button>'});
+    h+='</div><div id="fb" aria-live="polite"></div>';
+    box.innerHTML=h;
+    var btns=box.querySelectorAll('.opt');
+    btns.forEach(function(b){
+      b.addEventListener('click',function(){
+        var k=+b.getAttribute('data-k');
+        btns.forEach(function(x){x.disabled=true;});
+        btns[cur.a].classList.add('right');
+        var ok=(k===cur.a);
+        if(ok){score++}else{b.classList.add('wrong')}
+        $('fb').innerHTML='<div class="fb"><b>'+(ok?'Correcte. ':'Incorrecte. ')+'</b>'+cur.e+'</div><div class="btns" style="margin-top:12px"><button type="button" class="primary" id="next">'+(i+1===Q.length?'Veure resultat':'Següent')+'</button></div>';
+        $('next').addEventListener('click',function(){i++;render()});
+        $('next').focus();
+      });
+    });
+  }
+  render();
+})();
+</script>
